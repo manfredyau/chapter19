@@ -7,7 +7,6 @@ import org.springframework.context.support.ClassPathXmlApplicationContext;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.connection.RedisListCommands;
-import org.springframework.data.redis.connection.RedisZSetCommands;
 import org.springframework.data.redis.core.*;
 import org.springframework.data.redis.core.ZSetOperations.TypedTuple;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -18,12 +17,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-import static org.springframework.data.redis.connection.RedisZSetCommands.*;
+import static org.springframework.data.redis.connection.RedisZSetCommands.Limit;
+import static org.springframework.data.redis.connection.RedisZSetCommands.Range;
 import static redisTests.PrintUtil.printRangeWithScore;
 
 @SuppressWarnings("unchecked")
