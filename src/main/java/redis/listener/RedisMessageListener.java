@@ -20,5 +20,14 @@ public class RedisMessageListener implements MessageListener {
     public void onMessage(Message message, byte[] pattern) {
         byte[] body = message.getBody();
         String msgBody = (String) getRedisTemplate().getValueSerializer().deserialize(body);
+        System.err.println("消息："+msgBody);
+
+        byte[] channel = message.getChannel();
+
+        String channelStr = (String) getRedisTemplate().getStringSerializer().deserialize(channel);
+        System.err.println("channel: "+channelStr);
+
+        String bytesStr = new String(pattern);
+        System.err.println("渠道名稱："+bytesStr);
     }
 }

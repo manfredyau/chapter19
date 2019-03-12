@@ -1,20 +1,27 @@
 package redisTests;
 
+import com.ssm.chapter18.pojo.Role;
 import org.junit.Test;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.support.ClassPathXmlApplicationContext;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.connection.RedisListCommands;
 import org.springframework.data.redis.connection.RedisZSetCommands;
-import org.springframework.data.redis.core.DefaultTypedTuple;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
-import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.data.redis.core.*;
 import org.springframework.data.redis.core.ZSetOperations.TypedTuple;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.serializer.JdkSerializationRedisSerializer;
+import redis.clients.jedis.Jedis;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import static org.springframework.data.redis.connection.RedisZSetCommands.*;
 import static redisTests.PrintUtil.printRangeWithScore;
@@ -46,6 +53,25 @@ public class RedisTests {
         System.err.println(o);
     }
 
+    private static byte[] getFileToByte(File file) {
+        byte[] bytes = new byte[(int) file.length()];
+        try {
+            InputStream is = new FileInputStream(file);
+            ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+            byte[] bb = new byte[2048];
+            int ch;
+            ch = is.read(bb);
+            while (ch != -1) {
+                byteStream.write(bb, 0, ch);
+                ch = is.read(bb);
+            }
+            bytes = byteStream.toByteArray();
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+        return bytes;
+    }
+
     @Test
     public void test1() {
         ApplicationContext applicationContext = new ClassPathXmlApplicationContext("applicationContext.xml");
@@ -55,7 +81,7 @@ public class RedisTests {
         redisTemplate.opsForValue().set("key2", "value2");
 
         // 查詢屬性 key1 的值
-        String value1 = (String) redisTemplate.opsForValue().get("key1");
+        String value1 = redisTemplate.opsForValue().get("key1");
         System.err.println(value1);
 
         // 刪除 key1 屬性
@@ -66,11 +92,11 @@ public class RedisTests {
         System.err.println(length);
 
         // 修改 key2 並返回 key2 屬性的舊值
-        String oldValue2 = (String) redisTemplate.opsForValue().getAndSet("key2", "new_key2");
+        String oldValue2 = redisTemplate.opsForValue().getAndSet("key2", "new_key2");
         System.err.println(oldValue2);
 
         // 獲取 key2 的值
-        String value2 = (String) redisTemplate.opsForValue().get("key2");
+        String value2 = redisTemplate.opsForValue().get("key2");
         System.err.println(value2);
 
         // 求子串
@@ -285,7 +311,7 @@ public class RedisTests {
 
         // 根據分數來刪除元素
         redisTemplate.opsForZSet().removeRangeByScore("zset1", 1, 2);
-        System.err.println("zset1: "+redisTemplate.opsForZSet().range("zset1", 0, -1));
+        System.err.println("zset1: " + redisTemplate.opsForZSet().range("zset1", 0, -1));
 
 
         set = redisTemplate.opsForZSet().reverseRangeWithScores("zset2", 0, 10);
@@ -305,4 +331,118 @@ public class RedisTests {
         size = redisTemplate.opsForHyperLogLog().size("dest_loglog");
         System.err.println(size);
     }
+
+    @Test
+    public void test7() {
+        ClassPathXmlApplicationContext applicationContext = new ClassPathXmlApplicationContext("applicationContext.xml");
+        RedisTemplate redisTemplate = applicationContext.getBean(RedisTemplate.class);
+        String channel = "chat";
+        redisTemplate.convertAndSend(channel, "I am lazy!!");
+    }
+
+    @Test
+    public void test8() {
+        ClassPathXmlApplicationContext applicationContext = new ClassPathXmlApplicationContext("applicationContext.xml");
+        RedisTemplate redisTemplate = applicationContext.getBean(RedisTemplate.class);
+        redisTemplate.execute(new SessionCallback() {
+            @Override
+            public Object execute(RedisOperations redisOperations) throws DataAccessException {
+                redisOperations.boundValueOps("key1").set("value1");
+                String keyValue = (String) redisOperations.boundValueOps("key1").get();
+                Long expSecond = redisOperations.getExpire("key1");
+                System.err.println(expSecond);
+                boolean b = false;
+                b = redisOperations.expire("key1", 120L, TimeUnit.SECONDS);
+                b = redisOperations.persist("key1");
+                Long l = 0L;
+                l = redisOperations.getExpire("key1");
+                Long now = System.currentTimeMillis();
+                Date date = new Date();
+                date.setTime(now + 120_000);
+                redisOperations.expireAt("key", date);
+                return null;
+            }
+        });
+    }
+
+    @Test
+    public void test9() {
+        ApplicationContext applicationContext = new ClassPathXmlApplicationContext("applicationContext.xml");
+        RedisTemplate redisTemplate = applicationContext.getBean(RedisTemplate.class);
+        Jedis jedis = (Jedis) redisTemplate.getConnectionFactory().getConnection().getNativeConnection();
+
+        // 執行簡單的腳本
+        String helloJava = (String) jedis.eval("return 'hello Java'");
+        System.err.println(helloJava);
+
+        // 執行帶參數的腳本
+        jedis.eval("redis.call('set', KEYS[1], ARGV[1])", 1, "lua-key", "lua-value");
+        String luaValue = jedis.get("lua-key");
+        System.err.println(luaValue);
+
+
+        // 緩存腳本，返回 sha1 簽名標識
+        String sha1 = jedis.scriptLoad("redis.call('set', KEYS[1], ARGV[1])");
+
+        // 通過標識執行腳本
+        jedis.evalsha(sha1, 1, "sha-key", "sha-value");
+
+        // 獲取執行腳本後的數據
+        String shaVal = jedis.get("sha-key");
+        System.err.println(shaVal);
+
+        jedis.close();
+    }
+
+    @Test
+    public void test10() {
+        ClassPathXmlApplicationContext applicationContext = new ClassPathXmlApplicationContext("applicationContext.xml");
+        RedisTemplate redisTemplate = applicationContext.getBean(RedisTemplate.class);
+        DefaultRedisScript<Role> redisScript = new DefaultRedisScript<>();
+
+        // 設定腳本
+        redisScript.setScriptText("redis.call('set',KEYS[1],ARGV[1]) return redis.call('get',KEYS[1])");
+
+        // 定義操作的 key 列表，此處列表中僅有 role1 一個 key
+        List<String> keyList = new ArrayList<>();
+        keyList.add("role1");
+
+        // key role1 所對應的值
+        Role role = new Role();
+        role.setId(1L);
+        role.setRoleName("role_name_1");
+        role.setNote("note_1");
+
+        // 緩存腳本，並獲得相應的字符串
+        String sha1 = redisScript.getSha1();
+        System.err.println("SHA 加密後的字符串是：" + sha1);
+
+        // 倘若沒有這行代碼，則 redisTemplate.execute(...)會 return null
+        redisScript.setResultType(Role.class);
+
+        JdkSerializationRedisSerializer serializer = new JdkSerializationRedisSerializer();
+
+        Role obj = (Role) redisTemplate.execute(redisScript, serializer, serializer, keyList, role);
+
+        System.err.println(obj.getNote());
+    }
+
+    @Test
+    public void test11() {
+        ClassPathXmlApplicationContext applicationContext = new ClassPathXmlApplicationContext("applicationContext.xml");
+        RedisTemplate redisTemplate = applicationContext.getBean(RedisTemplate.class);
+
+        File file = new File("C:\\Users\\Administrator\\IdeaProjects\\my_chapter18\\src\\main\\resources\\test.lua");
+        byte[] bytes = getFileToByte(file);
+
+        Jedis jedis = (Jedis) redisTemplate.getConnectionFactory().getConnection().getNativeConnection();
+
+        byte[] sha1 = jedis.scriptLoad(bytes);
+
+        Object obj = jedis.evalsha(sha1, 2, "key1".getBytes(), "key2".getBytes(), "2".getBytes(), "4".getBytes());
+
+        System.err.println(obj.getClass());
+    }
+
+
 }
