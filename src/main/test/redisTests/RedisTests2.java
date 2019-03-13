@@ -8,12 +8,12 @@ import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
 import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SessionCallback;
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
-import redis.clients.jedis.JedisPoolConfig;
-import redis.clients.jedis.Pipeline;
+import redis.clients.jedis.*;
 
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class RedisTests2 {
     @Test
@@ -84,5 +84,43 @@ public class RedisTests2 {
         List resultList = redisTemplate.executePipelined(callback);
         long end = System.currentTimeMillis();
         System.err.println(end - start);
+    }
+
+    @Test
+    public void test4() {
+        JedisPoolConfig jedisPoolConfig = new JedisPoolConfig();
+        jedisPoolConfig.setMaxTotal(10);
+        jedisPoolConfig.setMaxIdle(5);
+        jedisPoolConfig.setMaxIdle(5);
+
+        Set<String> sentinels = new HashSet<>(Arrays.asList(
+                "127.0.0.1:26379",
+                "127.0.0.1:26479",
+                "127.0.0.1:26579"
+        ));
+
+        JedisSentinelPool pool = new JedisSentinelPool("mymaster", sentinels, jedisPoolConfig, "abcdefg");
+
+        Jedis jedis = pool.getResource();
+
+        jedis.set("myKey", "myValue");
+        String myValue = jedis.get("myKey");
+
+        System.err.println(myValue);
+    }
+
+    @Test
+    public void test5() {
+        ClassPathXmlApplicationContext applicationContext = new ClassPathXmlApplicationContext("applicationContext.xml");
+        RedisTemplate redisTemplate = applicationContext.getBean(RedisTemplate.class);
+        String retVal = (String) redisTemplate.execute(new SessionCallback() {
+            @Override
+            public Object execute(RedisOperations operations) throws DataAccessException {
+                operations.boundValueOps("myKey").set("myValue");
+                String value = (String) operations.boundValueOps("myKey").get();
+                return value;
+            }
+        });
+        System.err.println(retVal);
     }
 }

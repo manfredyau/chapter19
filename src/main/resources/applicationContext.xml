@@ -4,7 +4,7 @@
        xmlns:context="http://www.springframework.org/schema/context"
        xmlns:tx="http://www.springframework.org/schema/tx"
        xsi:schemaLocation="http://www.springframework.org/schema/beans
-           http://www.springframework.org/schema/beans/spring-beans-2.5.xsd
+           http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
 
            http://www.springframework.org/schema/tx
            http://www.springframework.org/schema/tx/spring-tx.xsd
@@ -20,11 +20,15 @@
         <!--最大連接數-->
         <property name="maxTotal" value="100"/>
         <!--最大等待毫秒數-->
-        <property name="maxWaitMillis" value="20000"/>
+        <property name="maxWaitMillis" value="3000"/>
     </bean>
 
     <!--將對象以字串的形式進行序列化-->
     <bean id="stringRedisSerializer" class="org.springframework.data.redis.serializer.StringRedisSerializer"/>
+
+    <!--jdk 序列化器，可以用這個來保存對象-->
+    <bean id="jdkSerializationRedisSerializer"
+          class="org.springframework.data.redis.serializer.JdkSerializationRedisSerializer"/>
 
     <!--配置連接工廠-->
     <bean id="connectionFactory" class="org.springframework.data.redis.connection.jedis.JedisConnectionFactory">
@@ -38,7 +42,7 @@
         <property name="connectionFactory" ref="connectionFactory"/>
         <property name="defaultSerializer" ref="stringRedisSerializer"/>
         <property name="keySerializer" ref="stringRedisSerializer"/>
-        <property name="valueSerializer" ref="stringRedisSerializer"/>
+        <property name="valueSerializer" ref="jdkSerializationRedisSerializer"/>
     </bean>
     <!--********************************************************************************************************-->
 
@@ -48,7 +52,8 @@
         <property name="redisTemplate" ref="redisTemplate"/>
     </bean>
 
-    <bean id="topicContainer" class="org.springframework.data.redis.listener.RedisMessageListenerContainer" destroy-method="destroy">
+    <bean id="topicContainer" class="org.springframework.data.redis.listener.RedisMessageListenerContainer"
+          destroy-method="destroy">
         <property name="connectionFactory" ref="connectionFactory"/>
         <property name="taskExecutor">
             <bean class="org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler">
@@ -66,4 +71,32 @@
             </map>
         </property>
     </bean>
+
+    <!--redis 哨兵配置-->
+    <bean id="sentinelConfig" class="org.springframework.data.redis.connection.RedisSentinelConfiguration">
+        <!--服務名稱-->
+        <property name="master">
+            <bean class="org.springframework.data.redis.connection.RedisNode">
+                <property name="name" value="mymaster"/>
+            </bean>
+        </property>
+        <property name="sentinels">
+            <set>
+                <bean class="org.springframework.data.redis.connection.RedisNode">
+                    <constructor-arg  value="127.0.0.1"/>
+                    <constructor-arg value="26379"/>
+                </bean>
+                <bean class="org.springframework.data.redis.connection.RedisNode">
+                    <constructor-arg name="host" value="127.0.0.1"/>
+                    <constructor-arg name="port" value="26479"/>
+                </bean>
+                <bean class="org.springframework.data.redis.connection.RedisNode">
+                    <constructor-arg name="host" value="127.0.0.1"/>
+                    <constructor-arg name="port" value="26579"/>
+                </bean>
+
+            </set>
+        </property>
+    </bean>
+
 </beans>
