@@ -9,9 +9,9 @@ public interface RoleService {
 
     int deleteRole(Long id);
 
-    int insertRole(Role role);
+    Role insertRole(Role role);
 
-    int updateRole(Role role);
+    Role updateRole(Role role);
 
     List<Role> findRoles(String roleName, String note);
 }

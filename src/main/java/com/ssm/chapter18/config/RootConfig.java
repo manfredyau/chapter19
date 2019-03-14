@@ -44,7 +44,7 @@ public class RootConfig implements TransactionManagementConfigurer {
 
         Properties props = new Properties();
         props.setProperty("driverClassName", "com.mysql.jdbc.Driver");
-        props.setProperty("url", "jdbc:mysql://localhost:3306/chapter6");
+        props.setProperty("url", "jdbc:mysql://localhost:3306/chapter6?serverTimezone=Asia/Shanghai");
         props.setProperty("username", "root");
         props.setProperty("password", "root");
         try {
@@ -66,7 +66,7 @@ public class RootConfig implements TransactionManagementConfigurer {
         sqlSessionFactory.setDataSource(initDataSource());
 
         // 配置 MyBatis 配置文件
-        Resource resource = new ClassPathResource("RoleMapper.xml");
+        Resource resource = new ClassPathResource("mapper-config.xml");
         sqlSessionFactory.setConfigLocation(resource);
         return sqlSessionFactory;
     }
