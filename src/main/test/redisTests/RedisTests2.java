@@ -20,25 +20,22 @@ public class RedisTests2 {
     public void test1() {
         ClassPathXmlApplicationContext applicationContext = new ClassPathXmlApplicationContext("applicationContext.xml");
         RedisTemplate redisTemplate = applicationContext.getBean(RedisTemplate.class);
-        SessionCallback sessionCallback = new SessionCallback() {
-            @Override
-            public Object execute(RedisOperations operations) throws DataAccessException {
-                // 開啟事務
-                operations.multi();
+        SessionCallback sessionCallback = (SessionCallback) operations -> {
+            // 開啟事務
+            operations.multi();
 
-                operations.boundValueOps("key1").set("value1");
+            operations.boundValueOps("key1").set("value1");
 
-                // 由於命令只是進入隊列，而沒有被執行，所以此處採用 get 命令，而 value 卻返回 null
-                String value = (String) operations.boundValueOps("key1").get();
-                System.out.println("事務執行過程中，命令進入隊列，而沒有被執行，所以 value 為空：value = '" + value + "'");
+            // 由於命令只是進入隊列，而沒有被執行，所以此處採用 get 命令，而 value 卻返回 null
+            String value = (String) operations.boundValueOps("key1").get();
+            System.out.println("事務執行過程中，命令進入隊列，而沒有被執行，所以 value 為空：value = '" + value + "'");
 
-                // 此時 list 會保存之前進入隊列的所有命令的結果
-                List list = operations.exec();
+            // 此時 list 會保存之前進入隊列的所有命令的結果
+            List list = operations.exec();
 
-                // 事務結束後，獲取 value1
-                value = (String) redisTemplate.opsForValue().get("key1");
-                return value;
-            }
+            // 事務結束後，獲取 value1
+            value = (String) redisTemplate.opsForValue().get("key1");
+            return value;
         };
 
         // 執行 redis 命令
